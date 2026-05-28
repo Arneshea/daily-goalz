@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}History — DayGoalz{% endblock %}
+
+{% block content %}
+<main class="md:ml-64 pt-24 pb-24 md:pb-xl px-margin-mobile md:px-margin-desktop min-h-screen">
+
+    <header class="max-w-4xl mx-auto mb-2xl">
+        <h1 class="font-display-lg text-display-lg-mobile md:text-display-lg mb-sm">The Archives</h1>
+        <div class="h-1 w-24 bg-primary mb-lg"></div>
+        <p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl italic">
+            A testament to your consistency. Review past seasons, analyze the rhythm of your discipline.
+        </p>
+    </header>
+
+    <div class="max-w-4xl mx-auto space-y-xl" id="history-list">
+        <div class="text-center py-xl text-on-surface-variant font-body-md italic">Loading archives…</div>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SEASONS = {
+    12:"Winter", 1:"Winter", 2:"Winter",
+    3:"Spring",  4:"Spring", 5:"Spring",
+    6:"Summer",  7:"Summer", 8:"Summer",
+    9:"Autumn",  10:"Autumn",11:"Autumn",
+};
+
+async function loadHistory() {
+    const months = await apiFetch("/api/stats/history");
+    const list   = document.getElementById("history-list");
+
+    if (months.every(m => m.total_done === 0 && m.goals.length === 0)) {
+        list.innerHTML = `<div class="bg-surface-container brutalist-border p-xl text-center border-dashed border-outline">
+            <span class="material-symbols-outlined text-outline text-4xl mb-md block">inventory_2</span>
+            <h3 class="font-headline-sm text-headline-sm mb-sm">No records yet</h3>
+            <p class="font-body-md text-on-surface-variant">Start tracking goals on the Monthly Grid to build your archive.</p>
+        </div>`;
+        return;
+    }
+
+    list.innerHTML = months.filter(m => m.goals.length > 0).map((m, idx) => {
+        const monthName = MONTH_NAMES[m.month - 1];
+        const season    = SEASONS[m.month];
+        const id        = `hist-${m.year}-${m.month}`;
+
+        const goalBars = m.goals.map(g => {
+            const color = g.pct >= 70 ? "bg-secondary" : g.pct >= 40 ? "bg-primary" : "bg-error/60";
+            return `<div class="flex items-center gap-md mb-sm">
+                <span class="text-lg">${g.emoji}</span>
+                <span class="font-body-md text-[13px] w-40 truncate">${g.name}</span>
+                <div class="flex-1 h-3 bg-surface-container-highest border border-on-surface">
+                    <div class="h-full ${color} transition-all duration-500" style="width:${g.pct}%"></div>
+                </div>
+                <span class="font-label-sm text-label-sm text-on-surface-variant w-12 text-right">${g.done}/${g.total}</span>
+            </div>`;
+        }).join("");
+
+        return `<div class="group bg-surface border-2 border-on-surface p-lg brutalist-shadow-hover transition-all cursor-pointer" onclick="toggleHistory('${id}')">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-md mb-lg">
+                <div>
+                    <span class="font-label-sm text-label-sm text-primary uppercase tracking-widest block mb-xs">${season} ${m.year}</span>
+                    <h2 class="font-headline-sm text-headline-sm">${monthName} ${m.year}</h2>
+                </div>
+                <div class="flex items-center gap-xl">
+                    <div class="text-center">
+                        <p class="font-label-sm text-label-sm text-on-surface-variant uppercase">Success Rate</p>
+                        <p class="font-headline-sm text-headline-sm ${m.pct >= 70 ? "text-secondary" : m.pct >= 40 ? "text-primary" : "text-error"}">${m.pct}%</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="font-label-sm text-label-sm text-on-surface-variant uppercase">Done</p>
+                        <p class="font-headline-sm text-headline-sm">${m.total_done}</p>
+                    </div>
+                    <span class="material-symbols-outlined text-outline transition-transform group-hover:rotate-180" id="icon-${id}">expand_more</span>
+                </div>
+            </div>
+            <div class="hidden border-t-2 border-outline-variant pt-lg" id="grid-${id}">
+                ${goalBars}
+            </div>
+        </div>`;
+    }).join("") || `<p class="text-center font-body-md italic text-on-surface-variant py-xl">No historical data found.</p>`;
+}
+
+function toggleHistory(id) {
+    const grid = document.getElementById(`grid-${id}`);
+    const icon = document.getElementById(`icon-${id}`);
+    const open = !grid.classList.contains("hidden");
+    grid.classList.toggle("hidden", open);
+    icon.style.transform = open ? "rotate(0deg)" : "rotate(180deg)";
+}
+
+loadHistory();
+</script>
+{% endblock %}

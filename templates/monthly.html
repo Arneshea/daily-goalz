@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+{% block title %}Monthly Grid — DayGoalz{% endblock %}
+
+{% block content %}
+<main class="md:ml-64 pt-24 pb-24 md:pb-xl px-margin-mobile md:px-margin-desktop min-h-screen">
+
+    <!-- Page header + month nav -->
+    <div class="flex flex-col md:flex-row md:items-end justify-between mb-xl gap-lg">
+        <div>
+            <h1 id="month-heading" class="font-display-lg text-display-lg-mobile md:text-display-lg text-on-surface mb-xs italic">—</h1>
+            <p class="font-body-md text-body-md text-on-surface-variant italic">Discipline is the bridge between goals and accomplishment.</p>
+        </div>
+        <div class="flex items-center border-2 border-on-surface bg-surface-container-lowest">
+            <button id="prev-month" class="p-md hover:bg-surface-container-high transition-colors">
+                <span class="material-symbols-outlined">arrow_back_ios</span>
+            </button>
+            <div class="px-xl py-md font-label-md text-label-md border-x-2 border-on-surface uppercase" id="month-label">—</div>
+            <button id="next-month" class="p-md hover:bg-surface-container-high transition-colors">
+                <span class="material-symbols-outlined">arrow_forward_ios</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Grid -->
+    <div class="w-full overflow-x-auto no-scrollbar border-2 border-on-surface bg-surface-container-lowest brutalist-shadow mb-2xl">
+        <table class="w-full border-collapse" id="goal-table">
+            <thead>
+                <tr class="bg-surface-container border-b-2 border-on-surface">
+                    <th class="sticky left-0 z-10 bg-surface-container p-md text-left border-r-2 border-on-surface font-label-md text-label-md w-56 min-w-[200px]">
+                        GOAL
+                        <button onclick="openAddModal()" class="ml-2 text-primary hover:text-primary-container transition-colors align-middle" title="Add goal">
+                            <span class="material-symbols-outlined text-[18px]">add_circle</span>
+                        </button>
+                    </th>
+                    <!-- Day headers rendered by JS -->
+                </tr>
+            </thead>
+            <tbody id="goal-body">
+                <tr><td colspan="33" class="text-center py-xl text-on-surface-variant font-body-md italic">Loading…</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Summary bento -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-lg mb-2xl" id="summary-cards">
+        <div class="bg-surface-container-low border-2 border-on-surface p-lg brutalist-shadow">
+            <div class="flex justify-between items-start mb-md">
+                <h3 class="font-headline-sm text-headline-sm uppercase">Consistency</h3>
+                <span class="material-symbols-outlined text-primary">trending_up</span>
+            </div>
+            <div class="flex items-baseline gap-xs mb-md">
+                <span class="text-4xl font-bold font-headline-md" id="stat-pct">—</span>
+                <span class="font-label-md text-label-md opacity-60">Avg. Completion</span>
+            </div>
+            <div class="h-4 bg-outline-variant border border-on-surface">
+                <div class="h-full bg-secondary transition-all duration-500" id="stat-bar" style="width:0%"></div>
+            </div>
+        </div>
+        <div class="bg-primary-fixed border-2 border-on-surface p-lg brutalist-shadow">
+            <div class="flex justify-between items-start mb-md">
+                <h3 class="font-headline-sm text-headline-sm uppercase">Best Streak</h3>
+                <span class="material-symbols-outlined text-primary" style="font-variation-settings:'FILL' 1">local_fire_department</span>
+            </div>
+            <div class="flex items-baseline gap-xs">
+                <span class="text-4xl font-bold font-headline-md" id="stat-streak">—</span>
+                <span class="font-label-md text-label-md opacity-60">Days in a row</span>
+            </div>
+        </div>
+        <div class="bg-surface-container-highest border-2 border-on-surface p-lg brutalist-shadow flex flex-col justify-between">
+            <div>
+                <h3 class="font-headline-sm text-headline-sm uppercase mb-md">Quick Summary</h3>
+                <ul class="space-y-sm font-body-md text-body-md">
+                    <li class="flex justify-between"><span>Total Goals</span><span id="stat-goals">—</span></li>
+                    <li class="flex justify-between"><span>Completions</span><span id="stat-done">—</span></li>
+                    <li class="flex justify-between"><span>Possible</span><span id="stat-possible">—</span></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let viewYear  = new Date().getFullYear();
+let viewMonth = new Date().getMonth() + 1;   // 1-based
+let goals = [], checks = {};
+
+function reloadPage() { loadAll(); }
+
+async function loadAll() {
+    await Promise.all([loadGoals(), loadChecks()]);
+    renderGrid();
+    loadStats();
+}
+
+async function loadGoals() {
+    goals = await apiFetch("/api/goals");
+}
+
+async function loadChecks() {
+    checks = await apiFetch(`/api/checks?year=${viewYear}&month=${viewMonth}`);
+}
+
+async function loadStats() {
+    const s = await apiFetch(`/api/stats/monthly?year=${viewYear}&month=${viewMonth}`);
+    document.getElementById("stat-pct").textContent      = s.pct + "%";
+    document.getElementById("stat-bar").style.width      = s.pct + "%";
+    document.getElementById("stat-streak").textContent   = s.best_streak;
+    document.getElementById("stat-goals").textContent    = s.total_goals;
+    document.getElementById("stat-done").textContent     = s.total_done;
+    document.getElementById("stat-possible").textContent = s.possible;
+}
+
+function renderGrid() {
+    const today     = new Date();
+    const todayYear = today.getFullYear();
+    const todayMon  = today.getMonth() + 1;
+    const todayDay  = today.getDate();
+    const days      = daysInMonth(viewYear, viewMonth);
+    const isCurMon  = (viewYear === todayYear && viewMonth === todayMon);
+
+    document.getElementById("month-heading").textContent = MONTH_NAMES[viewMonth - 1] + " " + viewYear;
+    document.getElementById("month-label").textContent   = MONTH_SHORT[viewMonth - 1] + " " + viewYear;
+
+    // Header row days
+    const thead = document.querySelector("#goal-table thead tr");
+    // Remove old day headers
+    while (thead.children.length > 1) thead.removeChild(thead.lastChild);
+    for (let d = 1; d <= days; d++) {
+        const th = document.createElement("th");
+        const isToday = isCurMon && d === todayDay;
+        th.className = `p-2 border-r border-outline-variant min-w-[40px] font-label-sm text-label-sm text-center
+            ${isToday ? "bg-primary text-on-primary" : (d % 7 === 0 || d % 7 === 6 ? "bg-surface-container-high" : "")}`;
+        th.textContent = d;
+        thead.appendChild(th);
+    }
+    // % header
+    const thPct = document.createElement("th");
+    thPct.className = "p-2 font-label-sm text-label-sm text-center min-w-[40px]";
+    thPct.textContent = "%";
+    thead.appendChild(thPct);
+
+    // Body rows
+    const tbody = document.getElementById("goal-body");
+    if (goals.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="${days + 2}" class="text-center py-xl text-on-surface-variant font-body-md italic">
+            No goals yet. <button onclick="openAddModal()" class="text-primary border-b border-primary">Add your first one!</button>
+        </td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = goals.map(goal => {
+        const goalChecks = checks[goal.id] || [];
+        const elapsed = isCurMon ? todayDay : days;
+        const done = goalChecks.filter(d => d <= elapsed).length;
+        const pct  = elapsed > 0 ? Math.round(done / elapsed * 100) : 0;
+
+        const cells = Array.from({length: days}, (_, i) => {
+            const d       = i + 1;
+            const checked = goalChecks.includes(d);
+            const isFut   = isCurMon && d > todayDay;
+            const dateStr = formatDate(viewYear, viewMonth, d);
+            return `<td class="p-0 text-center border-r border-outline-variant ${checked ? "bg-secondary-container/30" : ""}">
+                <input type="checkbox" class="goal-check"
+                    ${checked ? "checked" : ""}
+                    ${isFut ? "disabled" : ""}
+                    data-goal="${goal.id}" data-date="${dateStr}"
+                    onchange="toggleCheck(this)"/>
+            </td>`;
+        }).join("");
+
+        return `<tr class="hover:bg-surface-container-lowest group transition-colors">
+            <td class="sticky left-0 z-10 bg-surface-container-lowest p-md border-r-2 border-on-surface group-hover:bg-surface-container-low">
+                <div class="flex items-center gap-sm">
+                    <span class="text-xl">${goal.emoji || "🎯"}</span>
+                    <span class="font-body-md text-body-md font-semibold truncate max-w-[120px]">${goal.name}</span>
+                    <div class="ml-auto flex gap-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick='openEditModal(${JSON.stringify(goal)})' class="text-on-surface-variant hover:text-primary transition-colors" title="Edit">
+                            <span class="material-symbols-outlined text-[16px]">edit</span>
+                        </button>
+                        <button onclick="deleteGoal('${goal.id}','${goal.name.replace(/'/g,"\\\'")}')" class="text-on-surface-variant hover:text-error transition-colors" title="Delete">
+                            <span class="material-symbols-outlined text-[16px]">delete</span>
+                        </button>
+                    </div>
+                </div>
+            </td>
+            ${cells}
+            <td class="text-center px-sm font-label-md text-label-md ${pct >= 70 ? "text-secondary" : pct >= 40 ? "text-primary" : "text-error"}">${pct}%</td>
+        </tr>`;
+    }).join("");
+}
+
+async function toggleCheck(el) {
+    const goalId  = el.dataset.goal;
+    const dateStr = el.dataset.date;
+    try {
+        await apiFetch("/api/checks/toggle", {
+            method: "POST",
+            body: JSON.stringify({ goal_id: goalId, date: dateStr }),
+        });
+        // Refresh checks silently
+        checks = await apiFetch(`/api/checks?year=${viewYear}&month=${viewMonth}`);
+        renderGrid();
+        loadStats();
+    } catch (e) {
+        showToast("Could not save. Try again.");
+        el.checked = !el.checked;
+    }
+}
+
+async function deleteGoal(id, name) {
+    if (!confirm(`Remove "${name}" and all its data?`)) return;
+    await apiFetch(`/api/goals/${id}`, { method: "DELETE" });
+    showToast("Goal removed.");
+    await loadGoals();
+    await loadChecks();
+    renderGrid();
+    loadStats();
+}
+
+document.getElementById("prev-month").addEventListener("click", async () => {
+    viewMonth--;
+    if (viewMonth < 1) { viewMonth = 12; viewYear--; }
+    await loadChecks();
+    renderGrid();
+    loadStats();
+});
+document.getElementById("next-month").addEventListener("click", async () => {
+    const today = new Date();
+    if (viewYear === today.getFullYear() && viewMonth === today.getMonth() + 1) return;
+    viewMonth++;
+    if (viewMonth > 12) { viewMonth = 1; viewYear++; }
+    await loadChecks();
+    renderGrid();
+    loadStats();
+});
+
+loadAll();
+</script>
+{% endblock %}

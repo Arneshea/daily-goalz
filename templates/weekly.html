@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}Weekly View — DayGoalz{% endblock %}
+
+{% block content %}
+<main class="md:ml-64 pt-24 pb-24 md:pb-xl px-margin-mobile md:px-margin-desktop min-h-screen">
+
+    <div class="flex items-center justify-between mb-xl gap-lg flex-wrap">
+        <div>
+            <h1 id="week-heading" class="font-headline-md text-headline-md italic">—</h1>
+            <p id="week-sub" class="font-label-md text-label-md uppercase tracking-widest text-secondary">—</p>
+        </div>
+        <div class="flex gap-md">
+            <button id="prev-week" class="p-sm brutalist-border hover:bg-surface-container transition-all">
+                <span class="material-symbols-outlined">chevron_left</span>
+            </button>
+            <button id="today-btn" class="px-md py-sm brutalist-border font-label-md text-label-md hover:bg-surface-container transition-all">Today</button>
+            <button id="next-week" class="p-sm brutalist-border hover:bg-surface-container transition-all">
+                <span class="material-symbols-outlined">chevron_right</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-gutter" id="week-grid">
+        <div class="col-span-full text-center py-xl text-on-surface-variant font-body-md italic">Loading…</div>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let goals = [];
+let weekStart = getThisWeekMonday();
+
+function getThisWeekMonday() {
+    const d = new Date();
+    const day = d.getDay(); // 0=Sun
+    const diff = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff);
+    d.setHours(0,0,0,0);
+    return d;
+}
+
+function reloadPage() { loadAll(); }
+
+async function loadAll() {
+    goals = await apiFetch("/api/goals");
+    await renderWeek();
+}
+
+async function renderWeek() {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const days  = Array.from({length: 7}, (_, i) => {
+        const d = new Date(weekStart);
+        d.setDate(d.getDate() + i);
+        return d;
+    });
+
+    // Heading
+    const fmt = d => `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
+    document.getElementById("week-heading").textContent = `${fmt(days[0])} — ${fmt(days[6])}`;
+    const weekNum = getWeekNumber(days[0]);
+    document.getElementById("week-sub").textContent = `Week ${weekNum} / ${days[0].getFullYear()}`;
+
+    // Fetch checks for any months in this week
+    const months = [...new Set(days.map(d => `${d.getFullYear()}-${d.getMonth()+1}`))];
+    const checksByDate = {};
+    await Promise.all(months.map(async m => {
+        const [y, mo] = m.split("-").map(Number);
+        const ch = await apiFetch(`/api/checks?year=${y}&month=${mo}`);
+        goals.forEach(g => {
+            const arr = ch[g.id] || [];
+            arr.forEach(day => {
+                const key = formatDate(y, mo, day);
+                checksByDate[key] = checksByDate[key] || {};
+                checksByDate[key][g.id] = true;
+            });
+        });
+    }));
+
+    const grid = document.getElementById("week-grid");
+    if (goals.length === 0) {
+        grid.innerHTML = `<div class="col-span-full text-center py-xl text-on-surface-variant font-body-md italic">
+            No goals yet. <button onclick="openAddModal()" class="text-primary border-b border-primary">Add your first one!</button></div>`;
+        return;
+    }
+
+    grid.innerHTML = days.map(d => {
+        const dateStr  = d.toISOString().slice(0,10);
+        const isToday  = d.getTime() === today.getTime();
+        const isFuture = d > today;
+        const dayChecks = checksByDate[dateStr] || {};
+        const doneCount = goals.filter(g => dayChecks[g.id]).length;
+        const pct = goals.length > 0 ? Math.round(doneCount / goals.length * 100) : 0;
+
+        const goalItems = goals.map(g => {
+            const checked = !!dayChecks[g.id];
+            return `<div class="flex items-start gap-sm mb-sm">
+                <input type="checkbox" class="goal-check mt-[2px]"
+                    ${checked ? "checked" : ""} ${isFuture ? "disabled" : ""}
+                    data-goal="${g.id}" data-date="${dateStr}"
+                    onchange="toggleCheck(this)"/>
+                <span class="font-body-md text-[13px] leading-tight ${checked ? "line-through opacity-40" : ""}">
+                    ${g.emoji} ${g.name}
+                </span>
+            </div>`;
+        }).join("");
+
+        return `<div class="bg-surface-container-lowest border-2 ${isToday ? "border-primary brutalist-shadow" : "border-on-surface"} flex flex-col transition-all">
+            <div class="p-md border-b-2 ${isToday ? "border-primary bg-primary-fixed" : "border-outline-variant"}">
+                <h3 class="font-label-md text-label-md uppercase tracking-tighter">${DAY_NAMES[d.getDay()]}</h3>
+                <p class="font-headline-sm text-headline-sm italic leading-none">${MONTH_SHORT[d.getMonth()]} ${d.getDate()}</p>
+            </div>
+            <div class="p-md flex-grow">${goalItems}</div>
+            <div class="p-sm bg-surface-container-high border-t-2 border-outline-variant flex justify-between items-center">
+                <span class="font-label-sm text-label-sm">${doneCount}/${goals.length} done</span>
+                <span class="font-label-sm text-label-sm ${pct >= 70 ? "text-secondary" : pct >= 40 ? "text-primary" : "text-on-surface-variant"}">${pct}%</span>
+            </div>
+        </div>`;
+    }).join("");
+}
+
+async function toggleCheck(el) {
+    const goalId  = el.dataset.goal;
+    const dateStr = el.dataset.date;
+    try {
+        await apiFetch("/api/checks/toggle", {
+            method: "POST",
+            body: JSON.stringify({ goal_id: goalId, date: dateStr }),
+        });
+        await renderWeek();
+    } catch (e) {
+        showToast("Could not save. Try again.");
+        el.checked = !el.checked;
+    }
+}
+
+function getWeekNumber(d) {
+    const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+    return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+}
+
+document.getElementById("prev-week").addEventListener("click", async () => {
+    weekStart.setDate(weekStart.getDate() - 7);
+    await renderWeek();
+});
+document.getElementById("next-week").addEventListener("click", async () => {
+    weekStart.setDate(weekStart.getDate() + 7);
+    await renderWeek();
+});
+document.getElementById("today-btn").addEventListener("click", async () => {
+    weekStart = getThisWeekMonday();
+    await renderWeek();
+});
+
+loadAll();
+</script>
+{% endblock %}
