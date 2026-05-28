@@ -67,10 +67,24 @@ class DictCursor:
     def __exit__(self, *a): pass
 
 
+_db_cache = None
+
 def get_db():
+    global _db_cache
+    # Reuse cached connection if still alive
+    try:
+        if _db_cache is not None:
+            _db_cache.run("SELECT 1")
+            if "db" not in g:
+                g.db = _db_cache
+            return g.db
+    except Exception:
+        _db_cache = None
+
     if "db" not in g:
         params = parse_db_url(os.environ["DATABASE_URL"])
         g.db = pg8000.native.Connection(**params)
+        _db_cache = g.db
     return g.db
 
 
