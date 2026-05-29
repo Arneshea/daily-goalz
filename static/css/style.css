@@ -64,8 +64,8 @@
 
 /* Checkbox override for grid */
 input[type="checkbox"].goal-check {
-    width: 1.5rem;
-    height: 1.5rem;
+    width: 1.2rem;
+    height: 1.2rem;
     accent-color: #8d4b00;
     cursor: pointer;
     border: 2px solid #1e1b19;
@@ -89,6 +89,10 @@ input[type="checkbox"].goal-check:checked {
 input[type="checkbox"].goal-check:disabled {
     opacity: 0.3;
     cursor: not-allowed;
+}
+input[type="checkbox"].goal-check {
+    display: block;
+    margin: 0 auto;
 }
 
 /* Toast */

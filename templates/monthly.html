@@ -161,7 +161,7 @@ function renderGrid() {
             const checked = goalChecks.includes(d);
             const isFut   = isCurMon && d > todayDay;
             const dateStr = formatDate(viewYear, viewMonth, d);
-            return `<td class="p-0 text-center border-r border-outline-variant ${checked ? "bg-secondary-container/30" : ""}">
+            return `<td class="p-0 text-center align-middle border-r border-outline-variant ${checked ? "bg-secondary-container/30" : ""}">
                 <input type="checkbox" class="goal-check"
                     ${checked ? "checked" : ""}
                     ${isFut ? "disabled" : ""}
