@@ -32,7 +32,8 @@ function daysInMonth(year, month) {
 }
 
 function todayISO() {
-    return new Date().toISOString().slice(0, 10);
+    const d = new Date();
+    return formatDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
 }
 
 function formatDate(year, month, day) {

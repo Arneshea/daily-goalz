@@ -85,7 +85,7 @@ async function renderWeek() {
     }
 
     grid.innerHTML = days.map(d => {
-        const dateStr  = d.toISOString().slice(0,10);
+        const dateStr  = formatDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
         const isToday  = d.getTime() === today.getTime();
         const isFuture = d > today;
         const dayChecks = checksByDate[dateStr] || {};
