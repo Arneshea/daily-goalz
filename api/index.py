@@ -326,7 +326,10 @@ def toggle_check():
         return jsonify({"error": "Invalid date."}), 400
 
     # Prevent checking future dates
-    if checked_date > date.today():
+    from datetime import timezone, timedelta
+    IST = timezone(timedelta(hours=5, minutes=30))
+    today_ist = date.today()  # server uses UTC, so we allow +1 day buffer
+    if checked_date > today_ist + timedelta(days=1):
         return jsonify({"error": "Cannot check future dates."}), 400
 
     # Verify goal belongs to user
